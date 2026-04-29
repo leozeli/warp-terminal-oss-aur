@@ -282,13 +282,26 @@ jobs:
           AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "$AUR_SSH_KEY" > ~/.ssh/aur_key
+
+          # GitHub Secrets may store multiline keys with literal \n instead of
+          # real newlines. Restore proper PEM format before writing the key file.
+          printf '%s' "$AUR_SSH_KEY" | sed 's/\\n/\n/g' > ~/.ssh/aur_key
           chmod 600 ~/.ssh/aur_key
+
+          # Verify the key is loadable before attempting any git operations.
+          ssh-keygen -y -f ~/.ssh/aur_key > /dev/null || {
+            echo "::error::AUR_SSH_KEY failed to load — check the secret format (must be PEM, not base64-encoded)"
+            exit 1
+          }
+
+          # Pre-populate known_hosts so StrictHostKeyChecking won't block us.
+          ssh-keyscan -t ed25519 aur.archlinux.org >> ~/.ssh/known_hosts 2>/dev/null
+
           cat >> ~/.ssh/config <<-SSHCONF
           	Host aur.archlinux.org
           	  IdentityFile ~/.ssh/aur_key
           	  User aur
-          	  StrictHostKeyChecking accept-new
+          	  StrictHostKeyChecking yes
           SSHCONF
 
           AUR_URL="ssh://aur@aur.archlinux.org/warp-terminal-oss.git"

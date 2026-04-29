@@ -212,37 +212,38 @@ jobs:
 
       - name: Generate .SRCINFO
         run: |
-          cat > .SRCINFO <<EOF
-          pkgbase = warp-terminal-oss
-          	pkgdesc = Warp, the Rust-based terminal for developers and teams (OSS build)
-          	pkgver = $PKGVER
-          	pkgrel = 1
-          	url = https://github.com/warpdotdev/warp
-          	arch = x86_64
-          	license = AGPL-3.0-only
-          	license = MIT
-          	depends = curl
-          	depends = default-cursors
-          	depends = fontconfig
-          	depends = libegl
-          	depends = libx11
-          	depends = libxcb
-          	depends = libxcursor
-          	depends = libxi
-          	depends = libxkbcommon-x11
-          	depends = opengl-driver
-          	depends = xdg-utils
-          	depends = zlib
-          	optdepends = adwaita-cursors: for if there is no default cursor installed
-          	optdepends = zenity: for file dialogs in Gnome
-          	optdepends = kdialog: for file dialogs in KDE
-          	optdepends = org.freedesktop.secrets: for securely storing passwords
-          	options = !strip
-          	source = warp-terminal-oss-${PKGVER}-x86_64.tar.gz::https://github.com/leozeli/warp-terminal-oss-aur/releases/download/${PKGVER}/warp-terminal-oss-x86_64.tar.gz
-          	sha256sums = $SHA256
-
-          pkgname = warp-terminal-oss
-          EOF
+          # Use printf to avoid heredoc indentation issues in YAML.
+          printf '%s\n' \
+            'pkgbase = warp-terminal-oss' \
+            "	pkgdesc = Warp, the Rust-based terminal for developers and teams (OSS build)" \
+            "	pkgver = $PKGVER" \
+            '	pkgrel = 1' \
+            '	url = https://github.com/warpdotdev/warp' \
+            '	arch = x86_64' \
+            '	license = AGPL-3.0-only' \
+            '	license = MIT' \
+            '	depends = curl' \
+            '	depends = default-cursors' \
+            '	depends = fontconfig' \
+            '	depends = libegl' \
+            '	depends = libx11' \
+            '	depends = libxcb' \
+            '	depends = libxcursor' \
+            '	depends = libxi' \
+            '	depends = libxkbcommon-x11' \
+            '	depends = opengl-driver' \
+            '	depends = xdg-utils' \
+            '	depends = zlib' \
+            '	optdepends = adwaita-cursors: for if there is no default cursor installed' \
+            '	optdepends = zenity: for file dialogs in Gnome' \
+            '	optdepends = kdialog: for file dialogs in KDE' \
+            '	optdepends = org.freedesktop.secrets: for securely storing passwords' \
+            '	options = !strip' \
+            "	source = warp-terminal-oss-${PKGVER}-x86_64.tar.gz::https://github.com/leozeli/warp-terminal-oss-aur/releases/download/${PKGVER}/warp-terminal-oss-x86_64.tar.gz" \
+            "	sha256sums = $SHA256" \
+            '' \
+            'pkgname = warp-terminal-oss' \
+            > .SRCINFO
 
       - name: Record upstream SHA and push
         run: |
@@ -254,7 +255,7 @@ jobs:
           git push
 
       - name: Push to AUR
-        if: ${{ env.AUR_SSH_KEY != '' }}
+        if: ${{ secrets.AUR_SSH_KEY != '' }}
         env:
           AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
         run: |

@@ -29,7 +29,7 @@ optdepends=(
 )
 options=('!strip')
 source=("${pkgname}-${pkgver}-x86_64.tar.gz::https://github.com/leozeli/warp-terminal-oss-aur/releases/download/${pkgver}/${pkgname}-x86_64.tar.gz")
-sha256sums=('84b657a829f39ae5280da7f69802a5e9b125f1839911768af43dba1e37ef2316')
+sha256sums=('e433f701d379104b7cbca47d552d9f4f27282a14471dfe9788b81bead7361ee0')
 
 package() {
 	# The tarball contains opt/ and usr/share/ directory trees ready to install.

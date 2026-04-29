@@ -1,0 +1,285 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: 'Upstream warp git ref (branch/tag/sha, default: master)'
+        required: false
+        default: 'master'
+      force_rebuild:
+        description: 'Force rebuild even if upstream has no new commits'
+        required: false
+        default: 'false'
+  schedule:
+    # Check for upstream changes every Monday at 02:17 UTC.
+    - cron: '17 2 * * 1'
+
+permissions:
+  contents: write  # needed to create releases and push PKGBUILD updates
+
+jobs:
+  check-upstream:
+    name: Check for upstream changes
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+      upstream_sha: ${{ steps.check.outputs.upstream_sha }}
+      upstream_short_sha: ${{ steps.check.outputs.upstream_short_sha }}
+      pkgver: ${{ steps.check.outputs.pkgver }}
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Fetch upstream HEAD and compare
+        id: check
+        env:
+          FORCE_REBUILD: ${{ github.event.inputs.force_rebuild || 'false' }}
+          UPSTREAM_REF: ${{ github.event.inputs.upstream_ref || 'master' }}
+        run: |
+          UPSTREAM_SHA=$(git ls-remote https://github.com/warpdotdev/warp.git "$UPSTREAM_REF" | cut -f1)
+          UPSTREAM_SHORT_SHA="${UPSTREAM_SHA:0:7}"
+
+          LAST_SHA=""
+          if [[ -f UPSTREAM_SHA ]]; then
+            LAST_SHA=$(cat UPSTREAM_SHA)
+          fi
+
+          echo "upstream_sha=$UPSTREAM_SHA" >> "$GITHUB_OUTPUT"
+          echo "upstream_short_sha=$UPSTREAM_SHORT_SHA" >> "$GITHUB_OUTPUT"
+
+          if [[ "$FORCE_REBUILD" == "true" || "$UPSTREAM_SHA" != "$LAST_SHA" ]]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "New upstream commit: $UPSTREAM_SHORT_SHA (was: ${LAST_SHA:0:7:-})"
+          else
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            echo "Upstream unchanged ($UPSTREAM_SHORT_SHA), skipping build."
+          fi
+
+          # Get commit count for pkgver (r<count>.<sha>)
+          git clone --filter=blob:none --no-checkout \
+            https://github.com/warpdotdev/warp.git /tmp/warp-count
+          cd /tmp/warp-count
+          git fetch --depth=9999 origin "$UPSTREAM_SHA"
+          COUNT=$(git rev-list --count "$UPSTREAM_SHA")
+          echo "pkgver=r${COUNT}.${UPSTREAM_SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build warp-oss (x86_64)
+    needs: check-upstream
+    if: needs.check-upstream.outputs.should_build == 'true'
+    runs-on: ubuntu-22.04
+    outputs:
+      sha256: ${{ steps.package.outputs.sha256 }}
+    steps:
+      - name: Checkout upstream warp
+        uses: actions/checkout@v4
+        with:
+          repository: warpdotdev/warp
+          ref: ${{ needs.check-upstream.outputs.upstream_sha }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config \
+            libssl-dev \
+            libx11-dev libxcb1-dev libxcb-render0-dev \
+            libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxcursor-dev libxi-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev \
+            libegl1-mesa-dev libgl1-mesa-dev \
+            libfontconfig1-dev \
+            libdbus-1-dev \
+            libwayland-dev \
+            protobuf-compiler \
+            zlib1g-dev
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-registry-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-registry-
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: cargo-build-oss-${{ needs.check-upstream.outputs.upstream_sha }}
+          restore-keys: cargo-build-oss-
+
+      - name: Install Rust toolchain
+        run: |
+          TOOLCHAIN=$(grep 'channel' rust-toolchain.toml | sed 's/.*= "\(.*\)"/\1/')
+          rustup toolchain install "$TOOLCHAIN" --profile minimal --no-self-update
+          rustup default "$TOOLCHAIN"
+
+      - name: Build warp-oss
+        run: |
+          TOOLCHAIN=$(grep 'channel' rust-toolchain.toml | sed 's/.*= "\(.*\)"/\1/')
+          cargo +"$TOOLCHAIN" build \
+            --release \
+            --bin warp-oss \
+            --features "release_bundle,gui,nld_improvements"
+          strip --strip-all target/release/warp-oss
+
+      - name: Prepare bundled resources
+        run: |
+          SKIP_SETTINGS_SCHEMA=1 NO_LICENSES=1 \
+            ./script/prepare_bundled_resources /tmp/resources-out oss release
+
+      - name: Package tarball
+        id: package
+        run: |
+          STAGING="$(mktemp -d)"
+
+          install -Dm755 target/release/warp-oss \
+            "$STAGING/opt/warpdotdev/warp-terminal-oss/warp-oss"
+
+          [[ -d /tmp/resources-out ]] && \
+            cp -r /tmp/resources-out \
+              "$STAGING/opt/warpdotdev/warp-terminal-oss/resources"
+
+          install -Dm644 app/channels/oss/dev.warp.WarpOss.desktop \
+            "$STAGING/usr/share/applications/dev.warp.WarpOss.desktop"
+
+          for size in 16x16 32x32 64x64 128x128 256x256 512x512; do
+            src="app/channels/oss/icon/no-padding/$size.png"
+            [[ -f "$src" ]] && install -Dm644 "$src" \
+              "$STAGING/usr/share/icons/hicolor/$size/apps/dev.warp.WarpOss.png"
+          done
+
+          install -Dm644 LICENSE-AGPL \
+            "$STAGING/usr/share/licenses/warp-terminal-oss/LICENSE-AGPL"
+          install -Dm644 LICENSE-MIT \
+            "$STAGING/usr/share/licenses/warp-terminal-oss/LICENSE-MIT"
+
+          tar -czf warp-terminal-oss-x86_64.tar.gz -C "$STAGING" .
+          echo "sha256=$(sha256sum warp-terminal-oss-x86_64.tar.gz | cut -d' ' -f1)" \
+            >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: warp-terminal-oss-x86_64
+          path: warp-terminal-oss-x86_64.tar.gz
+          retention-days: 7
+
+  release:
+    name: Create Release and update PKGBUILD
+    needs: [check-upstream, build]
+    runs-on: ubuntu-latest
+    env:
+      PKGVER: ${{ needs.check-upstream.outputs.pkgver }}
+      UPSTREAM_SHA: ${{ needs.check-upstream.outputs.upstream_sha }}
+      UPSTREAM_SHORT_SHA: ${{ needs.check-upstream.outputs.upstream_short_sha }}
+      SHA256: ${{ needs.build.outputs.sha256 }}
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download tarball artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: warp-terminal-oss-x86_64
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.PKGVER }}
+          name: warp-terminal-oss ${{ env.PKGVER }}
+          body: |
+            Built from upstream warp commit [`${{ env.UPSTREAM_SHORT_SHA }}`](https://github.com/warpdotdev/warp/commit/${{ env.UPSTREAM_SHA }}).
+
+            **Install (AUR helper):**
+            ```
+            yay -S warp-terminal-oss
+            ```
+          files: warp-terminal-oss-x86_64.tar.gz
+          fail_on_unmatched_files: true
+
+      - name: Update PKGBUILD
+        run: |
+          sed -i "s|^pkgver=.*|pkgver=$PKGVER|" PKGBUILD
+          sed -i 's|^source=.*|source=("${pkgname}-${pkgver}-x86_64.tar.gz::https://github.com/leozeli/warp-terminal-oss-aur/releases/download/${pkgver}/${pkgname}-x86_64.tar.gz")|' PKGBUILD
+          sed -i "s|^sha256sums=.*|sha256sums=('$SHA256')|" PKGBUILD
+
+      - name: Generate .SRCINFO
+        run: |
+          cat > .SRCINFO <<EOF
+          pkgbase = warp-terminal-oss
+          	pkgdesc = Warp, the Rust-based terminal for developers and teams (OSS build)
+          	pkgver = $PKGVER
+          	pkgrel = 1
+          	url = https://github.com/warpdotdev/warp
+          	arch = x86_64
+          	license = AGPL-3.0-only
+          	license = MIT
+          	depends = curl
+          	depends = default-cursors
+          	depends = fontconfig
+          	depends = libegl
+          	depends = libx11
+          	depends = libxcb
+          	depends = libxcursor
+          	depends = libxi
+          	depends = libxkbcommon-x11
+          	depends = opengl-driver
+          	depends = xdg-utils
+          	depends = zlib
+          	optdepends = adwaita-cursors: for if there is no default cursor installed
+          	optdepends = zenity: for file dialogs in Gnome
+          	optdepends = kdialog: for file dialogs in KDE
+          	optdepends = org.freedesktop.secrets: for securely storing passwords
+          	options = !strip
+          	source = warp-terminal-oss-${PKGVER}-x86_64.tar.gz::https://github.com/leozeli/warp-terminal-oss-aur/releases/download/${PKGVER}/warp-terminal-oss-x86_64.tar.gz
+          	sha256sums = $SHA256
+
+          pkgname = warp-terminal-oss
+          EOF
+
+      - name: Record upstream SHA and push
+        run: |
+          echo "$UPSTREAM_SHA" > UPSTREAM_SHA
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add PKGBUILD .SRCINFO UPSTREAM_SHA
+          git commit -m "chore: release $PKGVER (upstream ${UPSTREAM_SHORT_SHA})"
+          git push
+
+      - name: Push to AUR
+        if: ${{ env.AUR_SSH_KEY != '' }}
+        env:
+          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$AUR_SSH_KEY" > ~/.ssh/aur_key
+          chmod 600 ~/.ssh/aur_key
+          cat >> ~/.ssh/config <<-SSHCONF
+          	Host aur.archlinux.org
+          	  IdentityFile ~/.ssh/aur_key
+          	  User aur
+          	  StrictHostKeyChecking accept-new
+          SSHCONF
+
+          AUR_URL="ssh://aur@aur.archlinux.org/warp-terminal-oss.git"
+          if git ls-remote "$AUR_URL" HEAD &>/dev/null; then
+            git clone "$AUR_URL" /tmp/aur-push
+            cp PKGBUILD .SRCINFO /tmp/aur-push/
+            cd /tmp/aur-push
+            git config user.name "leozeli"
+            git config user.email "leozeli@users.noreply.github.com"
+            git add PKGBUILD .SRCINFO
+            git commit -m "upgpkg: warp-terminal-oss $PKGVER"
+            git push origin master
+            echo "Pushed to AUR successfully."
+          else
+            echo "::warning::AUR package not yet registered. Push manually once to register:"
+            echo "  git clone ssh://aur@aur.archlinux.org/warp-terminal-oss.git"
+          fi

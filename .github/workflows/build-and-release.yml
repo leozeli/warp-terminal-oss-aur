@@ -82,19 +82,29 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            build-essential pkg-config \
-            libssl-dev \
+            build-essential cmake pkg-config \
+            libssl-dev libfreetype-dev libexpat1-dev libgit2-dev \
+            libfontconfig1-dev \
+            libasound2-dev \
             libx11-dev libxcb1-dev libxcb-render0-dev \
             libxcb-shape0-dev libxcb-xfixes0-dev \
             libxcursor-dev libxi-dev \
             libxkbcommon-dev libxkbcommon-x11-dev \
             libegl1-mesa-dev libgl1-mesa-dev \
-            libfontconfig1-dev \
             libdbus-1-dev \
             libwayland-dev \
-            protobuf-compiler \
-            libprotobuf-dev \
-            zlib1g-dev
+            zlib1g-dev \
+            jq curl unzip
+
+          # apt protobuf-compiler on Ubuntu 22.04 ships protoc 3.12, which is
+          # too old for proto3 optional fields (requires >= 3.15). Install 25.1
+          # from upstream releases, same approach as script/linux/install_build_deps.
+          PROTOC_VERSION="25.1"
+          curl -fsSL -o /tmp/protoc.zip \
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          sudo unzip -o /tmp/protoc.zip -d /usr/local bin/protoc 'include/*'
+          rm /tmp/protoc.zip
+          protoc --version
 
       - name: Cache cargo registry
         uses: actions/cache@v4

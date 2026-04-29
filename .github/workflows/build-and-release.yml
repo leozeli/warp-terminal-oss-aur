@@ -12,8 +12,8 @@ on:
         required: false
         default: 'false'
   schedule:
-    # Check for upstream changes every Monday at 02:17 UTC.
-    - cron: '17 2 * * 1'
+    # Check for upstream changes every day at 02:17 UTC.
+    - cron: '17 2 * * *'
 
 permissions:
   contents: write  # needed to create releases and push PKGBUILD updates

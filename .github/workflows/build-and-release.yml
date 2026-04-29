@@ -292,17 +292,25 @@ jobs:
           SSHCONF
 
           AUR_URL="ssh://aur@aur.archlinux.org/warp-terminal-oss.git"
-          if git ls-remote "$AUR_URL" HEAD &>/dev/null; then
-            git clone "$AUR_URL" /tmp/aur-push
-            cp PKGBUILD .SRCINFO /tmp/aur-push/
-            cd /tmp/aur-push
-            git config user.name "leozeli"
-            git config user.email "leozeli@users.noreply.github.com"
-            git add PKGBUILD .SRCINFO
-            git commit -m "upgpkg: warp-terminal-oss $PKGVER"
-            git push origin master
-            echo "Pushed to AUR successfully."
+
+          # AUR creates the package on first push — no pre-registration needed.
+          # Clone existing history if available, otherwise start fresh.
+          mkdir /tmp/aur-push
+          cd /tmp/aur-push
+          git init
+          git remote add origin "$AUR_URL"
+
+          if git fetch origin master 2>/dev/null; then
+            git checkout -b master FETCH_HEAD
           else
-            echo "::warning::AUR package not yet registered. Push manually once to register:"
-            echo "  git clone ssh://aur@aur.archlinux.org/warp-terminal-oss.git"
+            echo "No existing AUR history — creating package for the first time."
+            git checkout -b master
           fi
+
+          cp "$GITHUB_WORKSPACE/PKGBUILD" "$GITHUB_WORKSPACE/.SRCINFO" .
+          git config user.name "leozeli"
+          git config user.email "leozeli@users.noreply.github.com"
+          git add PKGBUILD .SRCINFO
+          git commit -m "upgpkg: warp-terminal-oss $PKGVER"
+          git push origin master
+          echo "Pushed to AUR successfully."

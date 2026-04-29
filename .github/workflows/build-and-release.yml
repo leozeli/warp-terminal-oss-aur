@@ -93,6 +93,7 @@ jobs:
             libdbus-1-dev \
             libwayland-dev \
             protobuf-compiler \
+            libprotobuf-dev \
             zlib1g-dev
 
       - name: Cache cargo registry

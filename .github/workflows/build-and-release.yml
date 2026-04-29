@@ -254,8 +254,19 @@ jobs:
           git commit -m "chore: release $PKGVER (upstream ${UPSTREAM_SHORT_SHA})"
           git push
 
+      - name: Check AUR key
+        id: check_aur
+        run: |
+          if [[ -n "$AUR_SSH_KEY" ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
+
       - name: Push to AUR
-        if: ${{ secrets.AUR_SSH_KEY != '' }}
+        if: steps.check_aur.outputs.available == 'true'
         env:
           AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
         run: |

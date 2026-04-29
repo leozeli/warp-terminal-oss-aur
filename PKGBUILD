@@ -36,6 +36,11 @@ package() {
 	cp -r "$srcdir/opt" "$pkgdir/"
 	cp -r "$srcdir/usr" "$pkgdir/"
 
+	# Fix upstream .desktop Exec field: upstream ships Exec=warp-oss but the
+	# AUR package exposes /usr/bin/warp-terminal-oss as the public entry point.
+	sed -i 's|^Exec=warp-oss|Exec=warp-terminal-oss|' \
+		"$pkgdir/usr/share/applications/dev.warp.WarpOss.desktop"
+
 	# Install the wrapper shell script that respects user-supplied flags.
 	local _install_dir="/opt/warpdotdev/$pkgname"
 	install -Dm755 /dev/stdin "$pkgdir/usr/bin/$pkgname" <<-WRAPPER

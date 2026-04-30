@@ -1,11 +1,13 @@
-pkgbase = warp-terminal-oss
-	pkgdesc = Warp, the Rust-based terminal for developers and teams (OSS build)
+pkgbase = warp-terminal-oss-bin
+	pkgdesc = Warp, the Rust-based terminal for developers and teams (OSS build, prebuilt binary)
 	pkgver = r34.d0f045c
 	pkgrel = 1
-	url = https://github.com/warpdotdev/warp
+	url = https://github.com/leozeli/warp-terminal-oss-aur
 	arch = x86_64
 	license = AGPL-3.0-only
 	license = MIT
+	provides = warp-terminal-oss
+	conflicts = warp-terminal-oss
 	depends = curl
 	depends = default-cursors
 	depends = fontconfig
@@ -26,4 +28,4 @@ pkgbase = warp-terminal-oss
 	source = warp-terminal-oss-r34.d0f045c-x86_64.tar.gz::https://github.com/leozeli/warp-terminal-oss-aur/releases/download/r34.d0f045c/warp-terminal-oss-x86_64.tar.gz
 	sha256sums = e433f701d379104b7cbca47d552d9f4f27282a14471dfe9788b81bead7361ee0
 
-pkgname = warp-terminal-oss
+pkgname = warp-terminal-oss-bin

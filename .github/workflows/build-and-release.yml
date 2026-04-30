@@ -204,13 +204,13 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.PKGVER }}
-          name: warp-terminal-oss ${{ env.PKGVER }}
+          name: warp-terminal-oss-bin ${{ env.PKGVER }}
           body: |
             Built from upstream warp commit [`${{ env.UPSTREAM_SHORT_SHA }}`](https://github.com/warpdotdev/warp/commit/${{ env.UPSTREAM_SHA }}).
 
             **Install (AUR helper):**
             ```
-            yay -S warp-terminal-oss
+            yay -S warp-terminal-oss-bin
             ```
           files: warp-terminal-oss-x86_64.tar.gz
           fail_on_unmatched_files: true
@@ -218,21 +218,23 @@ jobs:
       - name: Update PKGBUILD
         run: |
           sed -i "s|^pkgver=.*|pkgver=$PKGVER|" PKGBUILD
-          sed -i 's|^source=.*|source=("${pkgname}-${pkgver}-x86_64.tar.gz::https://github.com/leozeli/warp-terminal-oss-aur/releases/download/${pkgver}/${pkgname}-x86_64.tar.gz")|' PKGBUILD
+          sed -i 's|^source=.*|source=("${_pkgbase}-${pkgver}-x86_64.tar.gz::https://github.com/leozeli/warp-terminal-oss-aur/releases/download/${pkgver}/${_pkgbase}-x86_64.tar.gz")|' PKGBUILD
           sed -i "s|^sha256sums=.*|sha256sums=('$SHA256')|" PKGBUILD
 
       - name: Generate .SRCINFO
         run: |
           # Use printf to avoid heredoc indentation issues in YAML.
           printf '%s\n' \
-            'pkgbase = warp-terminal-oss' \
-            "	pkgdesc = Warp, the Rust-based terminal for developers and teams (OSS build)" \
+            'pkgbase = warp-terminal-oss-bin' \
+            "	pkgdesc = Warp, the Rust-based terminal for developers and teams (OSS build, prebuilt binary)" \
             "	pkgver = $PKGVER" \
             '	pkgrel = 1' \
-            '	url = https://github.com/warpdotdev/warp' \
+            '	url = https://github.com/leozeli/warp-terminal-oss-aur' \
             '	arch = x86_64' \
             '	license = AGPL-3.0-only' \
             '	license = MIT' \
+            '	provides = warp-terminal-oss' \
+            '	conflicts = warp-terminal-oss' \
             '	depends = curl' \
             '	depends = default-cursors' \
             '	depends = fontconfig' \
@@ -253,7 +255,7 @@ jobs:
             "	source = warp-terminal-oss-${PKGVER}-x86_64.tar.gz::https://github.com/leozeli/warp-terminal-oss-aur/releases/download/${PKGVER}/warp-terminal-oss-x86_64.tar.gz" \
             "	sha256sums = $SHA256" \
             '' \
-            'pkgname = warp-terminal-oss' \
+            'pkgname = warp-terminal-oss-bin' \
             > .SRCINFO
 
       - name: Record upstream SHA and push
@@ -306,7 +308,7 @@ jobs:
           	  StrictHostKeyChecking yes
           SSHCONF
 
-          AUR_URL="ssh://aur@aur.archlinux.org/warp-terminal-oss.git"
+          AUR_URL="ssh://aur@aur.archlinux.org/warp-terminal-oss-bin.git"
 
           # AUR creates the package on first push — no pre-registration needed.
           # Clone existing history if available, otherwise start fresh.
@@ -326,6 +328,6 @@ jobs:
           git config user.name "leozeli"
           git config user.email "leozeli@users.noreply.github.com"
           git add PKGBUILD .SRCINFO
-          git commit -m "upgpkg: warp-terminal-oss $PKGVER"
+          git commit -m "upgpkg: warp-terminal-oss-bin $PKGVER"
           git push origin master
           echo "Pushed to AUR successfully."

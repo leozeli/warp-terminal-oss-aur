@@ -1,12 +1,15 @@
 # Maintainer: leozeli <leozeli@users.noreply.github.com>
 # Automatically updated by CI — do not edit pkgver/sha256sums manually.
-pkgname=warp-terminal-oss
+_pkgbase=warp-terminal-oss
+pkgname=warp-terminal-oss-bin
 pkgver=r34.d0f045c
 pkgrel=1
-pkgdesc="Warp, the Rust-based terminal for developers and teams (OSS build)"
+pkgdesc="Warp, the Rust-based terminal for developers and teams (OSS build, prebuilt binary)"
 arch=('x86_64')
-url="https://github.com/warpdotdev/warp"
+url="https://github.com/leozeli/warp-terminal-oss-aur"
 license=('AGPL-3.0-only' 'MIT')
+provides=('warp-terminal-oss')
+conflicts=('warp-terminal-oss')
 depends=(
 	'curl'
 	'default-cursors'
@@ -28,7 +31,7 @@ optdepends=(
 	'org.freedesktop.secrets: for securely storing passwords'
 )
 options=('!strip')
-source=("${pkgname}-${pkgver}-x86_64.tar.gz::https://github.com/leozeli/warp-terminal-oss-aur/releases/download/${pkgver}/${pkgname}-x86_64.tar.gz")
+source=("${_pkgbase}-${pkgver}-x86_64.tar.gz::https://github.com/leozeli/warp-terminal-oss-aur/releases/download/${pkgver}/${_pkgbase}-x86_64.tar.gz")
 sha256sums=('e433f701d379104b7cbca47d552d9f4f27282a14471dfe9788b81bead7361ee0')
 
 package() {
@@ -38,16 +41,16 @@ package() {
 
 	# Fix upstream .desktop Exec field: upstream ships Exec=warp-oss but the
 	# AUR package exposes /usr/bin/warp-terminal-oss as the public entry point.
-	sed -i 's|^Exec=warp-oss|Exec=warp-terminal-oss|' \
+	sed -i "s|^Exec=warp-oss|Exec=$_pkgbase|" \
 		"$pkgdir/usr/share/applications/dev.warp.WarpOss.desktop"
 
 	# Install the wrapper shell script that respects user-supplied flags.
-	local _install_dir="/opt/warpdotdev/$pkgname"
-	install -Dm755 /dev/stdin "$pkgdir/usr/bin/$pkgname" <<-WRAPPER
+	local _install_dir="/opt/warpdotdev/$_pkgbase"
+	install -Dm755 /dev/stdin "$pkgdir/usr/bin/$_pkgbase" <<-WRAPPER
 		#!/bin/bash
 		XDG_CONFIG_HOME=\${XDG_CONFIG_HOME:-~/.config}
-		if [[ -f "\$XDG_CONFIG_HOME/$pkgname-flags.conf" ]]; then
-		    WARP_USER_FLAGS="\$(grep -v '^#' "\$XDG_CONFIG_HOME/$pkgname-flags.conf")"
+		if [[ -f "\$XDG_CONFIG_HOME/$_pkgbase-flags.conf" ]]; then
+		    WARP_USER_FLAGS="\$(grep -v '^#' "\$XDG_CONFIG_HOME/$_pkgbase-flags.conf")"
 		fi
 		exec "$_install_dir/warp-oss" \$WARP_USER_FLAGS "\$@"
 	WRAPPER

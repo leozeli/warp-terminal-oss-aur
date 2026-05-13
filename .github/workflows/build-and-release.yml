@@ -135,7 +135,7 @@ jobs:
           cargo +"$TOOLCHAIN" build \
             --release \
             --bin warp-oss \
-            --features "release_bundle,gui,nld_improvements"
+            --features "release_bundle,gui"
           strip --strip-all target/release/warp-oss
 
       - name: Prepare bundled resources

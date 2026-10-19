@@ -141,7 +141,7 @@ jobs:
       - name: Prepare bundled resources
         run: |
           SKIP_SETTINGS_SCHEMA=1 NO_LICENSES=1 \
-            ./script/prepare_bundled_resources /tmp/resources-out oss release
+            ./script/prepare_bundled_resources /tmp/resources-out oss
 
       - name: Package tarball
         id: package
